@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/penalty",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}

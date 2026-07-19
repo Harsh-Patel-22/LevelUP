@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-orbitron: 'Orbitron', sans-serif;
+  --font-rajdhani: 'Rajdhani', sans-serif;
+  --font-inter: 'Inter', sans-serif;
+}
+
+body {
+  background-color: #0a0a0f;
+  color: #e2e8f0;
+  font-family: var(--font-inter);
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(79, 142, 247, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(124, 58, 237, 0.06) 0%, transparent 40%);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #232334;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4f8ef7;
+}
+
+/* System Glassmorphic Panel */
+.system-panel {
+  background: rgba(18, 18, 26, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(79, 142, 247, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.system-panel-glow {
+  background: rgba(18, 18, 26, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(79, 142, 247, 0.4);
+  box-shadow: 0 0 20px rgba(79, 142, 247, 0.15);
+}
+
+/* Solo Rank Colors */
+.rank-badge-SS {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #000;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+}
+
+.rank-badge-S {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
+}
+
+.rank-badge-A {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(124, 58, 237, 0.6);
+}
+
+.rank-badge-B {
+  background: linear-gradient(135deg, #4f8ef7, #2563eb);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(79, 142, 247, 0.6);
+}
+
+.rank-badge-C {
+  background: linear-gradient(135deg, #22d3ee, #0891b2);
+  color: #000;
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.5);
+}
+
+.rank-badge-D {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+.rank-badge-E {
+  background: linear-gradient(135deg, #64748b, #475569);
+  color: #fff;
+}
