@@ -177,67 +177,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const taskId = Number(searchParams.get('task_id'));
-    const dateParam = searchParams.get('date') || getFormattedDate();
-
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
-    }
-
-    // Fetch completion record
-    const compRes = await db.execute({
-      sql: 'SELECT * FROM completions WHERE task_id = ? AND completed_on = ?',
-      args: [taskId, dateParam],
-    });
-
-    if (compRes.rows.length === 0) {
-      return NextResponse.json({ error: 'Completion not found' }, { status: 404 });
-    }
-
-    const completion = compRes.rows[0];
-    const xpEarned = Number(completion.xp_earned);
-
-    // Fetch task category
-    const taskRes = await db.execute({
-      sql: 'SELECT category_id, type FROM tasks WHERE id = ?',
-      args: [taskId],
-    });
-    const categoryId = Number(taskRes.rows[0].category_id);
-    const taskType = String(taskRes.rows[0].type);
-
-    // Delete completion
-    await db.execute({
-      sql: 'DELETE FROM completions WHERE task_id = ? AND completed_on = ?',
-      args: [taskId, dateParam],
-    });
-
-    // Revert XP in log by adding a negative delta or removing last task_complete log
-    await db.execute({
-      sql: 'INSERT INTO xp_log (category_id, delta, reason, logged_at) VALUES (?, ?, ?, datetime("now"))',
-      args: [categoryId, -xpEarned, 'undo_completion'],
-    });
-
-    // Revert streak
-    if (taskType === 'habit') {
-      const streakRes = await db.execute({
-        sql: 'SELECT current_streak FROM streaks WHERE task_id = ?',
-        args: [taskId],
-      });
-      if (streakRes.rows.length > 0) {
-        const curStreak = Number(streakRes.rows[0].current_streak);
-        const prevStreak = Math.max(0, curStreak - 1);
-        await db.execute({
-          sql: 'UPDATE streaks SET current_streak = ? WHERE task_id = ?',
-          args: [prevStreak, taskId],
-        });
-      }
-    }
-
-    return NextResponse.json({ success: true, message: 'Completion reverted' });
-  } catch (error) {
-    console.error('Error undoing completion:', error);
-    return NextResponse.json({ error: 'Failed to undo completion' }, { status: 500 });
-  }
+  return NextResponse.json(
+    { error: 'Task completions are locked once completed and cannot be undone.' },
+    { status: 403 }
+  );
 }

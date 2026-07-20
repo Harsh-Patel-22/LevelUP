@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import PlayerCard from '@/components/PlayerCard';
 import TaskCard, { TaskItem } from '@/components/TaskCard';
 import LevelUpModal from '@/components/LevelUpModal';
+import VoiceAssistantHUD from '@/components/VoiceAssistantHUD';
 import { RankInfo, getOverallRank, getFormattedDate } from '@/lib/xp';
-import { ShieldAlert, CheckCircle, Flame, Plus, Sparkles, Calendar, Layers } from 'lucide-react';
+import { Flame, Plus, Sparkles, Calendar, Layers } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -71,52 +72,34 @@ export default function DashboardPage() {
   }, [fetchData]);
 
   const handleToggleTask = async (task: TaskItem, isCompleted: boolean) => {
+    if (completions[task.id]) return; // Locked once completed
+
     try {
-      if (isCompleted) {
-        // Complete task
-        const res = await fetch('/api/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task_id: task.id, date: todayStr }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setCompletions((prev) => ({ ...prev, [task.id]: true }));
+      // Complete task
+      const res = await fetch('/api/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: task.id, date: todayStr }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCompletions((prev) => ({ ...prev, [task.id]: true }));
 
-          // Refetch XP & streaks to update status bar
-          const xpRes = await fetch('/api/stats/xp');
-          const xpData = await xpRes.json();
-          setPlayerXP(xpData.totalXP || 0);
-          if (xpData.rank) setPlayerRank(xpData.rank);
+        // Refetch XP & streaks
+        const xpRes = await fetch('/api/stats/xp');
+        const xpData = await xpRes.json();
+        setPlayerXP(xpData.totalXP || 0);
+        if (xpData.rank) setPlayerRank(xpData.rank);
 
-          if (data.leveledUp) {
-            setLevelUpData({
-              isOpen: true,
-              categoryName: data.categoryName || 'Category',
-              newLevel: data.newLevel || 1,
-            });
-          }
-
-          return { xpEarned: data.xpEarned };
-        }
-      } else {
-        // Undo task completion
-        const res = await fetch(`/api/completions?task_id=${task.id}&date=${todayStr}`, {
-          method: 'DELETE',
-        });
-        if (res.ok) {
-          setCompletions((prev) => {
-            const next = { ...prev };
-            delete next[task.id];
-            return next;
+        if (data.leveledUp) {
+          setLevelUpData({
+            isOpen: true,
+            categoryName: data.categoryName || 'Category',
+            newLevel: data.newLevel || 1,
           });
-
-          // Refetch XP
-          const xpRes = await fetch('/api/stats/xp');
-          const xpData = await xpRes.json();
-          setPlayerXP(xpData.totalXP || 0);
-          if (xpData.rank) setPlayerRank(xpData.rank);
         }
+
+        return { xpEarned: data.xpEarned };
       }
     } catch (err) {
       console.error('Error toggling completion:', err);
@@ -145,6 +128,13 @@ export default function DashboardPage() {
         categoryName={levelUpData.categoryName}
         newLevel={levelUpData.newLevel}
         onClose={() => setLevelUpData((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Floating System Voice HUD */}
+      <VoiceAssistantHUD
+        tasks={tasks.map((t) => ({ ...t, is_completed_today: !!completions[t.id] }))}
+        onCompleteTask={(task) => handleToggleTask(task, true)}
+        onRefresh={fetchData}
       />
 
       {/* Main Quest Content Grid */}
@@ -176,9 +166,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="w-10 h-10 rounded-full border-2 border-solo-cyan/40 p-0.5 flex items-center justify-center">
-                  <div
-                    className="w-full h-full rounded-full bg-solo-cyan/20 flex items-center justify-center text-solo-cyan font-orbitron text-xs font-bold"
-                  >
+                  <div className="w-full h-full rounded-full bg-solo-cyan/20 flex items-center justify-center text-solo-cyan font-orbitron text-xs font-bold">
                     {habitProgressPercent}%
                   </div>
                 </div>
