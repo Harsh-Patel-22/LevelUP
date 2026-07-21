@@ -4,10 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import PlayerCard from '@/components/PlayerCard';
 import TaskCard, { TaskItem } from '@/components/TaskCard';
 import LevelUpModal from '@/components/LevelUpModal';
-import VoiceAssistantHUD from '@/components/VoiceAssistantHUD';
 import BossRaidCard from '@/components/BossRaidCard';
 import { RankInfo, getOverallRank, getFormattedDate } from '@/lib/xp';
-import { Flame, Plus, Sparkles, Calendar, Layers } from 'lucide-react';
+import { Flame, Plus, Sparkles, Calendar, Layers, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -30,8 +29,8 @@ export default function DashboardPage() {
 
   const todayStr = getFormattedDate();
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
       // 1. Fetch active tasks
       const tasksRes = await fetch('/api/tasks');
@@ -72,34 +71,33 @@ export default function DashboardPage() {
   }, [todayStr]);
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
   }, [fetchData]);
 
   const handleToggleTask = async (task: TaskItem, isCompleted: boolean) => {
     if (completions[task.id]) return; // Locked once completed
 
     try {
-      // Complete task
+      // Optimistically update completions map locally to prevent flicker
+      setCompletions((prev) => ({ ...prev, [task.id]: true }));
+
+      // Complete task API
       const res = await fetch('/api/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: task.id, date: todayStr }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setCompletions((prev) => ({ ...prev, [task.id]: true }));
 
+      if (res.ok) {
         // Trigger Boss Raid damage
         if (data.xpEarned) {
           setLastDamageDealt(data.xpEarned);
           setTimeout(() => setLastDamageDealt(null), 1500);
         }
 
-        // Refetch XP & streaks
-        const xpRes = await fetch('/api/stats/xp');
-        const xpData = await xpRes.json();
-        setPlayerXP(xpData.totalXP || 0);
-        if (xpData.rank) setPlayerRank(xpData.rank);
+        // Silent background refetch of stats
+        fetchData(false);
 
         if (data.leveledUp) {
           setLevelUpData({
@@ -110,6 +108,13 @@ export default function DashboardPage() {
         }
 
         return { xpEarned: data.xpEarned };
+      } else {
+        // Rollback optimistic update on error
+        setCompletions((prev) => {
+          const copy = { ...prev };
+          delete copy[task.id];
+          return copy;
+        });
       }
     } catch (err) {
       console.error('Error toggling completion:', err);
@@ -117,7 +122,8 @@ export default function DashboardPage() {
   };
 
   const habits = tasks.filter((t) => t.type === 'habit');
-  const priorities = tasks.filter((t) => t.type === 'priority');
+  // Undone priority tasks
+  const priorities = tasks.filter((t) => t.type === 'priority' && !completions[t.id]);
 
   const habitsDoneCount = habits.filter((h) => completions[h.id]).length;
   const habitProgressPercent = habits.length > 0 ? Math.round((habitsDoneCount / habits.length) * 100) : 0;
@@ -140,20 +146,14 @@ export default function DashboardPage() {
         onClose={() => setLevelUpData((prev) => ({ ...prev, isOpen: false }))}
       />
 
-      {/* Floating System Voice HUD */}
-      <VoiceAssistantHUD
-        tasks={tasks.map((t) => ({ ...t, is_completed_today: !!completions[t.id] }))}
-        onCompleteTask={(task) => handleToggleTask(task, true)}
-        onRefresh={fetchData}
-      />
-
       {/* Main Quest Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left 2 Columns: Boss Raid Widget + Daily Habits Checklist */}
         <div className="lg:col-span-2 space-y-6">
           {/* Boss Raid Widget */}
-          <BossRaidCard lastDamageDealt={lastDamageDealt} onRefresh={fetchData} />
+          <BossRaidCard lastDamageDealt={lastDamageDealt} onRefresh={() => fetchData(false)} />
 
+          {/* Daily Habits Section */}
           <div className="system-panel rounded-xl p-6 border-solo-blue/30">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-surface-border">
               <div>
@@ -227,7 +227,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-surface-border">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-solo-violet" />
-                <h2 className="font-orbitron font-bold text-lg text-text-primary">Priority Tasks</h2>
+                <h2 className="font-orbitron font-bold text-lg text-text-primary">Priority Tasks (Undone)</h2>
               </div>
               <Link
                 href="/tasks"
@@ -240,9 +240,12 @@ export default function DashboardPage() {
             {loading ? (
               <div className="h-16 bg-surface-border/40 rounded-xl animate-pulse" />
             ) : priorities.length === 0 ? (
-              <p className="text-xs font-rajdhani text-text-muted py-4 text-center">
-                No active priority tasks. You are all caught up!
-              </p>
+              <div className="text-center py-6 bg-surface/30 rounded-lg border border-dashed border-surface-border">
+                <CheckCircle2 className="w-8 h-8 text-solo-cyan/40 mx-auto mb-2" />
+                <p className="text-xs font-rajdhani text-text-muted font-bold">
+                  All priority tasks cleared! Great work.
+                </p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {priorities.map((priority) => (

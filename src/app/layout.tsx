@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Navigation from '@/components/Navigation';
+import VoiceAssistantHUD from '@/components/VoiceAssistantHUD';
 
 export const metadata: Metadata = {
   title: 'Solo Leveling System | Daily Quest Interface',
@@ -19,6 +20,8 @@ export default function RootLayout({
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {children}
         </main>
+        {/* Global Voice Control Assistant available across all pages */}
+        <VoiceAssistantHUD />
       </body>
     </html>
   );

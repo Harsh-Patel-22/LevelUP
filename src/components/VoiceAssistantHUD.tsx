@@ -1,17 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, MicOff, Volume2, VolumeX, Sparkles, HelpCircle, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Sparkles, HelpCircle, X } from 'lucide-react';
 import { parseVoiceCommand, speakSystemVoice, findBestTaskMatch } from '@/lib/voice';
+import { playVoiceActivateSFX } from '@/lib/sound';
 
-interface VoiceAssistantHUDProps {
-  tasks?: Array<{ id: number; title: string; is_completed_today?: boolean }>;
-  onCompleteTask?: (task: any) => void;
-  onRefresh?: () => void;
-}
-
-export default function VoiceAssistantHUD({ tasks = [], onCompleteTask, onRefresh }: VoiceAssistantHUDProps) {
+export default function VoiceAssistantHUD() {
   const router = useRouter();
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -20,89 +15,72 @@ export default function VoiceAssistantHUD({ tasks = [], onCompleteTask, onRefres
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
+  const isVoiceEnabledRef = useRef<boolean>(false);
   const recognitionRef = useRef<any>(null);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSpeechSupported(false);
-      return;
+  const startRecognition = useCallback(() => {
+    if (!recognitionRef.current || !isVoiceEnabledRef.current) return;
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+    } catch (err) {
+      // Ignore if already started
     }
+  }, []);
 
-    const rec = new SpeechRecognition();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = 'en-US';
-
-    rec.onresult = (event: any) => {
-      let currentTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        currentTranscript += event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          handleFinalCommand(event.results[i][0].transcript);
-        }
-      }
-      setTranscript(currentTranscript);
-    };
-
-    rec.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed') {
-        setLastCommandMsg('⚠️ Microphone permission denied.');
-        setIsListening(false);
-      }
-    };
-
-    rec.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = rec;
-  }, [tasks, onCompleteTask, router]);
-
-  const toggleListening = () => {
-    if (!recognitionRef.current) return;
-
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      setTranscript('');
-    } else {
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-        setTranscript('Listening...');
-        setLastCommandMsg(null);
-        if (!voiceMuted) speakSystemVoice('System voice online. State your command.');
-      } catch (err) {
-        console.error('Error starting recognition:', err);
-      }
-    }
-  };
-
-  const handleFinalCommand = async (finalText: string) => {
+  const handleFinalCommand = useCallback(async (finalText: string) => {
     const intent = parseVoiceCommand(finalText);
 
     switch (intent.type) {
       case 'COMPLETE_TASK': {
-        const match = findBestTaskMatch(intent.taskTitle, tasks);
-        if (match) {
-          if (match.is_completed_today) {
-            const msg = `Quest "${match.title}" is already cleared and locked.`;
-            setLastCommandMsg(`🔒 ${msg}`);
-            if (!voiceMuted) speakSystemVoice(msg);
-          } else if (onCompleteTask) {
-            onCompleteTask(match);
-            const msg = `Completed quest "${match.title}".`;
-            setLastCommandMsg(`✅ ${msg}`);
+        try {
+          const tasksRes = await fetch('/api/tasks');
+          const tasksData = await tasksRes.json();
+          const loadedTasks = tasksData.tasks || [];
+
+          // Also check today's completions
+          const todayStr = new Date().toISOString().split('T')[0];
+          const compRes = await fetch(`/api/completions?date=${todayStr}`);
+          const compData = await compRes.json();
+          const compMap: Record<number, boolean> = {};
+          (compData.completions || []).forEach((c: any) => {
+            compMap[c.task_id] = true;
+          });
+
+          const tasksWithComp = loadedTasks.map((t: any) => ({
+            ...t,
+            is_completed_today: !!compMap[t.id],
+          }));
+
+          const match = findBestTaskMatch(intent.taskTitle, tasksWithComp);
+          if (match) {
+            if (match.is_completed_today) {
+              const msg = `Quest "${match.title}" is already cleared and locked.`;
+              setLastCommandMsg(`🔒 ${msg}`);
+              if (!voiceMuted) speakSystemVoice(msg);
+            } else {
+              const res = await fetch('/api/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task_id: match.id, date: todayStr }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                const msg = `Completed quest "${match.title}". Earned +${data.xpEarned || 0} XP!`;
+                setLastCommandMsg(`✅ ${msg}`);
+                if (!voiceMuted) speakSystemVoice(msg);
+                router.refresh(); // Refresh current page state
+              } else {
+                setLastCommandMsg('❌ Completion failed.');
+              }
+            }
+          } else {
+            const msg = `Task matching "${intent.taskTitle}" not found.`;
+            setLastCommandMsg(`⚠️ ${msg}`);
             if (!voiceMuted) speakSystemVoice(msg);
           }
-        } else {
-          const msg = `Task matching "${intent.taskTitle}" not found.`;
-          setLastCommandMsg(`⚠️ ${msg}`);
-          if (!voiceMuted) speakSystemVoice(msg);
+        } catch (err) {
+          console.error('Error executing voice completion:', err);
         }
         break;
       }
@@ -136,7 +114,7 @@ export default function VoiceAssistantHUD({ tasks = [], onCompleteTask, onRefres
             const msg = `Created new ${intent.taskType} quest: "${intent.title}".`;
             setLastCommandMsg(`✨ ${msg}`);
             if (!voiceMuted) speakSystemVoice(msg);
-            if (onRefresh) onRefresh();
+            router.refresh();
           }
         } catch (err) {
           setLastCommandMsg('❌ Failed to create task via voice.');
@@ -150,7 +128,7 @@ export default function VoiceAssistantHUD({ tasks = [], onCompleteTask, onRefres
         const msg = data.penalizedCount > 0 ? `Penalized ${data.penalizedCount} missed habits.` : 'All daily habits are up to date.';
         setLastCommandMsg(`⚡ Audit: ${msg}`);
         if (!voiceMuted) speakSystemVoice(`Audit executed. ${msg}`);
-        if (onRefresh) onRefresh();
+        router.refresh();
         break;
       }
 
@@ -160,13 +138,109 @@ export default function VoiceAssistantHUD({ tasks = [], onCompleteTask, onRefres
         break;
       }
     }
+  }, [router, voiceMuted]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechSupported(false);
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+
+    rec.onresult = (event: any) => {
+      let currentTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        currentTranscript += event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          handleFinalCommand(event.results[i][0].transcript);
+        }
+      }
+      setTranscript(currentTranscript);
+    };
+
+    rec.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      if (event.error === 'not-allowed') {
+        setLastCommandMsg('⚠️ Microphone permission denied.');
+        isVoiceEnabledRef.current = false;
+        setIsListening(false);
+      }
+    };
+
+    // Keep voice recognition continuously active until manually turned off!
+    rec.onend = () => {
+      if (isVoiceEnabledRef.current) {
+        setTimeout(() => {
+          if (isVoiceEnabledRef.current && recognitionRef.current) {
+            try {
+              recognitionRef.current.start();
+              setIsListening(true);
+            } catch (err) {}
+          }
+        }, 300);
+      } else {
+        setIsListening(false);
+      }
+    };
+
+    recognitionRef.current = rec;
+
+    // Check if voice control was previously enabled by user
+    const wasActive = localStorage.getItem('levelup_voice_active') === 'true';
+    if (wasActive) {
+      isVoiceEnabledRef.current = true;
+      try {
+        rec.start();
+        setIsListening(true);
+        setTranscript('Listening continuously...');
+      } catch (e) {}
+    }
+  }, [handleFinalCommand]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+
+    playVoiceActivateSFX();
+
+    if (isListening || isVoiceEnabledRef.current) {
+      // Manually turning OFF
+      isVoiceEnabledRef.current = false;
+      localStorage.setItem('levelup_voice_active', 'false');
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+      setIsListening(false);
+      setTranscript('');
+      setLastCommandMsg('🎤 Voice Control Disabled.');
+      setTimeout(() => setLastCommandMsg(null), 3000);
+    } else {
+      // Manually turning ON (Continuous)
+      isVoiceEnabledRef.current = true;
+      localStorage.setItem('levelup_voice_active', 'true');
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+        setTranscript('Listening continuously...');
+        setLastCommandMsg(null);
+        if (!voiceMuted) speakSystemVoice('System voice active. Standing by.');
+      } catch (err) {
+        console.error('Error starting recognition:', err);
+      }
+    }
   };
 
   if (!speechSupported) return null;
 
   return (
     <>
-      {/* Floating System Voice Button HUD */}
+      {/* Floating System Voice Button HUD (Available on all pages) */}
       <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
         {/* Transcript / Result Toast */}
         {(isListening || lastCommandMsg) && (
@@ -174,7 +248,7 @@ export default function VoiceAssistantHUD({ tasks = [], onCompleteTask, onRefres
             {isListening && (
               <div className="flex items-center gap-2 text-solo-cyan mb-1">
                 <span className="w-2 h-2 rounded-full bg-solo-cyan animate-ping" />
-                <span>SYSTEM VOICE: LISTENING...</span>
+                <span>SYSTEM VOICE: ALWAYS ACTIVE</span>
               </div>
             )}
             {transcript && <p className="text-text-primary italic">"{transcript}"</p>}
@@ -209,7 +283,7 @@ export default function VoiceAssistantHUD({ tasks = [], onCompleteTask, onRefres
             }`}
           >
             {isListening ? <Mic className="w-4 h-4 animate-bounce" /> : <MicOff className="w-4 h-4" />}
-            <span>{isListening ? 'Listening' : 'Voice Control'}</span>
+            <span>{isListening ? 'Voice ON' : 'Voice OFF'}</span>
           </button>
         </div>
       </div>
@@ -235,7 +309,7 @@ export default function VoiceAssistantHUD({ tasks = [], onCompleteTask, onRefres
             <div className="space-y-3 font-rajdhani text-xs">
               <div className="p-3 bg-surface rounded-lg border border-surface-border">
                 <div className="font-bold text-solo-cyan text-sm uppercase mb-1">
-                  1. Complete / Mark Task Done
+                  1. Complete / Mark Task Done (Any Page)
                 </div>
                 <p className="text-text-muted">
                   Say: <strong className="text-text-primary">"Complete [task name]"</strong> or{' '}
