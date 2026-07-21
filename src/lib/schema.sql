@@ -39,3 +39,16 @@ CREATE TABLE IF NOT EXISTS xp_log (
   reason TEXT NOT NULL,
   logged_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS boss_raids (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  avatar TEXT DEFAULT '⚔️',
+  current_hp INTEGER NOT NULL,
+  max_hp INTEGER NOT NULL,
+  reward_xp INTEGER NOT NULL DEFAULT 500,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  is_defeated INTEGER NOT NULL DEFAULT 0
+);

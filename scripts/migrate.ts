@@ -51,6 +51,38 @@ async function main() {
     console.log('✅ Seeded default categories.');
   }
 
+  // Seed active Boss Raid if empty
+  const existingBoss = await db.execute('SELECT COUNT(*) as count FROM boss_raids');
+  const bossCount = Number(existingBoss.rows[0].count);
+
+  if (bossCount === 0) {
+    console.log('👹 Seeding default Weekly Boss Raid...');
+    const today = new Date();
+    const nextWeek = new Date();
+    nextWeek.setDate(today.getDate() + 7);
+
+    const todayStr = today.toISOString().split('T')[0];
+    const nextWeekStr = nextWeek.toISOString().split('T')[0];
+
+    await db.execute({
+      sql: `
+        INSERT INTO boss_raids (name, title, avatar, current_hp, max_hp, reward_xp, start_date, end_date, is_defeated)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+      `,
+      args: [
+        'Blood-Red Commander Igris',
+        'S-Rank Dungeon Boss',
+        '⚔️',
+        2000,
+        2000,
+        1000,
+        todayStr,
+        nextWeekStr,
+      ],
+    });
+    console.log('✅ Seeded Boss Raid: Igris the Red-Blood Knight.');
+  }
+
   console.log('🎉 Migration completed successfully!');
 }
 

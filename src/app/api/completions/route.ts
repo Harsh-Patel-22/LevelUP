@@ -146,6 +146,33 @@ export async function POST(req: NextRequest) {
       args: [categoryId, xpEarned, 'task_complete'],
     });
 
+    // 6.b Deal damage to active Boss Raid equal to xpEarned
+    let bossDamageDealt = 0;
+    let bossDefeatedNow = false;
+    const bossRes = await db.execute('SELECT * FROM boss_raids WHERE is_defeated = 0 ORDER BY id DESC LIMIT 1');
+    if (bossRes.rows.length > 0) {
+      const activeBoss = bossRes.rows[0];
+      const bossId = Number(activeBoss.id);
+      const currentHP = Number(activeBoss.current_hp);
+      const bossReward = Number(activeBoss.reward_xp);
+
+      const newHP = Math.max(0, currentHP - xpEarned);
+      bossDamageDealt = currentHP - newHP;
+      bossDefeatedNow = newHP === 0 && currentHP > 0;
+
+      await db.execute({
+        sql: 'UPDATE boss_raids SET current_hp = ?, is_defeated = ? WHERE id = ?',
+        args: [newHP, bossDefeatedNow ? 1 : 0, bossId],
+      });
+
+      if (bossDefeatedNow) {
+        await db.execute({
+          sql: 'INSERT INTO xp_log (category_id, delta, reason, logged_at) VALUES (?, ?, ?, datetime("now"))',
+          args: [categoryId, bossReward, `Boss Defeated Reward: ${activeBoss.name}`],
+        });
+      }
+    }
+
     // 7. Check if leveled up
     const postXpRes = await db.execute({
       sql: 'SELECT COALESCE(SUM(delta), 0) as total_xp FROM xp_log WHERE category_id = ?',

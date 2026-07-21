@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import PlayerCard from '@/components/PlayerCard';
+import XPHeatmap from '@/components/XPHeatmap';
 import { RankInfo, getOverallRank } from '@/lib/xp';
-import { BarChart3, Layers, Flame, TrendingUp } from 'lucide-react';
+import { Layers, Flame, TrendingUp } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 interface CategoryLevelStat {
@@ -50,7 +51,7 @@ export default function StatsPage() {
         const [xpRes, streakRes, historyRes] = await Promise.all([
           fetch('/api/stats/xp'),
           fetch('/api/stats/streaks'),
-          fetch(`/api/stats/history?days=${daysFilter}`),
+          fetch(`/api/stats/history?days=365`),
         ]);
 
         const xpData = await xpRes.json();
@@ -70,12 +71,17 @@ export default function StatsPage() {
     }
 
     loadStats();
-  }, [daysFilter]);
+  }, []);
+
+  const filteredHistory = history.slice(-daysFilter);
 
   return (
     <div className="space-y-8">
       {/* Status Header */}
       <PlayerCard rank={rankInfo} totalXP={totalXP} activeStreaksCount={streaks.length} loading={loading} />
+
+      {/* 365-Day XP Contribution Grid */}
+      <XPHeatmap historyLogs={history} />
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -187,7 +193,7 @@ export default function StatsPage() {
             ) : (
               <div className="h-64 w-full pt-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={filteredHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="xpColor" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.4} />

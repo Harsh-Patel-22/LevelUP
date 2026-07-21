@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Flame, Check, Zap, Lock } from 'lucide-react';
 import { getStreakMultiplier, getBaseXP } from '@/lib/xp';
+import { playQuestCompleteSFX } from '@/lib/sound';
 
 export interface TaskItem {
   id: number;
@@ -46,6 +47,7 @@ export default function TaskCard({ task, onToggleComplete, onEdit, onArchive }: 
     if (loading || completed) return; // Locked once completed
     setCompleted(true);
     setLoading(true);
+    playQuestCompleteSFX();
 
     try {
       const result = await onToggleComplete(task, true);

@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Trophy, Sparkles, Check } from 'lucide-react';
+import { playLevelUpSFX } from '@/lib/sound';
 
 interface LevelUpModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface LevelUpModalProps {
 export default function LevelUpModal({ isOpen, categoryName, newLevel, onClose }: LevelUpModalProps) {
   useEffect(() => {
     if (isOpen) {
+      playLevelUpSFX();
       // Trigger confetti animation
       const duration = 2.5 * 1000;
       const animationEnd = Date.now() + duration;

@@ -5,6 +5,7 @@ import PlayerCard from '@/components/PlayerCard';
 import TaskCard, { TaskItem } from '@/components/TaskCard';
 import LevelUpModal from '@/components/LevelUpModal';
 import VoiceAssistantHUD from '@/components/VoiceAssistantHUD';
+import BossRaidCard from '@/components/BossRaidCard';
 import { RankInfo, getOverallRank, getFormattedDate } from '@/lib/xp';
 import { Flame, Plus, Sparkles, Calendar, Layers } from 'lucide-react';
 import Link from 'next/link';
@@ -16,6 +17,9 @@ export default function DashboardPage() {
   const [playerRank, setPlayerRank] = useState<RankInfo>(getOverallRank(0));
   const [activeStreaks, setActiveStreaks] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Boss Raid damage strike animation state
+  const [lastDamageDealt, setLastDamageDealt] = useState<number | null>(null);
 
   // Level Up Modal state
   const [levelUpData, setLevelUpData] = useState<{ isOpen: boolean; categoryName: string; newLevel: number }>({
@@ -85,6 +89,12 @@ export default function DashboardPage() {
       if (res.ok) {
         setCompletions((prev) => ({ ...prev, [task.id]: true }));
 
+        // Trigger Boss Raid damage
+        if (data.xpEarned) {
+          setLastDamageDealt(data.xpEarned);
+          setTimeout(() => setLastDamageDealt(null), 1500);
+        }
+
         // Refetch XP & streaks
         const xpRes = await fetch('/api/stats/xp');
         const xpData = await xpRes.json();
@@ -139,8 +149,11 @@ export default function DashboardPage() {
 
       {/* Main Quest Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left 2 Columns: Daily Habits Checklist */}
+        {/* Left 2 Columns: Boss Raid Widget + Daily Habits Checklist */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Boss Raid Widget */}
+          <BossRaidCard lastDamageDealt={lastDamageDealt} onRefresh={fetchData} />
+
           <div className="system-panel rounded-xl p-6 border-solo-blue/30">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-surface-border">
               <div>
