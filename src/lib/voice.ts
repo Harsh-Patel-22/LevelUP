@@ -218,24 +218,8 @@ export function parseVoiceCommand(transcript: string): VoiceIntent {
 }
 
 /**
- * Text-To-Speech Synthesizer for System Assistant Voice Feedback
+ * Text-To-Speech Synthesizer (Disabled per user request)
  */
-export function speakSystemVoice(text: string) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.0;
-  utterance.pitch = 0.9;
-  utterance.volume = 0.9;
-
-  const voices = window.speechSynthesis.getVoices();
-  const systemVoice = voices.find(
-    (v) => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('David'))
-  );
-  if (systemVoice) {
-    utterance.voice = systemVoice;
-  }
-
-  window.speechSynthesis.speak(utterance);
+export function speakSystemVoice(_text: string) {
+  // Disabled: Voice control only listens to user voice input without speaking aloud
 }

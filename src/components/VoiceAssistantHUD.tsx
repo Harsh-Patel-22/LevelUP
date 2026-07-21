@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, MicOff, Volume2, VolumeX, Sparkles, HelpCircle, X } from 'lucide-react';
-import { parseVoiceCommand, speakSystemVoice, findBestTaskMatch } from '@/lib/voice';
+import { Mic, MicOff, Sparkles, HelpCircle, X } from 'lucide-react';
+import { parseVoiceCommand, findBestTaskMatch } from '@/lib/voice';
 import { playVoiceActivateSFX } from '@/lib/sound';
 
 export default function VoiceAssistantHUD() {
@@ -12,21 +12,10 @@ export default function VoiceAssistantHUD() {
   const [transcript, setTranscript] = useState('');
   const [lastCommandMsg, setLastCommandMsg] = useState<string | null>(null);
   const [speechSupported, setSpeechSupported] = useState(true);
-  const [voiceMuted, setVoiceMuted] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
   const isVoiceEnabledRef = useRef<boolean>(false);
   const recognitionRef = useRef<any>(null);
-
-  const startRecognition = useCallback(() => {
-    if (!recognitionRef.current || !isVoiceEnabledRef.current) return;
-    try {
-      recognitionRef.current.start();
-      setIsListening(true);
-    } catch (err) {
-      // Ignore if already started
-    }
-  }, []);
 
   const handleFinalCommand = useCallback(async (finalText: string) => {
     const intent = parseVoiceCommand(finalText);
@@ -55,9 +44,7 @@ export default function VoiceAssistantHUD() {
           const match = findBestTaskMatch(intent.taskTitle, tasksWithComp);
           if (match) {
             if (match.is_completed_today) {
-              const msg = `Quest "${match.title}" is already cleared and locked.`;
-              setLastCommandMsg(`🔒 ${msg}`);
-              if (!voiceMuted) speakSystemVoice(msg);
+              setLastCommandMsg(`🔒 Quest "${match.title}" is already cleared and locked.`);
             } else {
               const res = await fetch('/api/completions', {
                 method: 'POST',
@@ -66,18 +53,14 @@ export default function VoiceAssistantHUD() {
               });
               if (res.ok) {
                 const data = await res.json();
-                const msg = `Completed quest "${match.title}". Earned +${data.xpEarned || 0} XP!`;
-                setLastCommandMsg(`✅ ${msg}`);
-                if (!voiceMuted) speakSystemVoice(msg);
-                router.refresh(); // Refresh current page state
+                setLastCommandMsg(`✅ Completed quest "${match.title}". Earned +${data.xpEarned || 0} XP!`);
+                router.refresh();
               } else {
                 setLastCommandMsg('❌ Completion failed.');
               }
             }
           } else {
-            const msg = `Task matching "${intent.taskTitle}" not found.`;
-            setLastCommandMsg(`⚠️ ${msg}`);
-            if (!voiceMuted) speakSystemVoice(msg);
+            setLastCommandMsg(`⚠️ Task matching "${intent.taskTitle}" not found.`);
           }
         } catch (err) {
           console.error('Error executing voice completion:', err);
@@ -88,9 +71,7 @@ export default function VoiceAssistantHUD() {
       case 'NAVIGATE': {
         router.push(intent.destination);
         const pageName = intent.destination === '/' ? 'Dashboard' : intent.destination.replace('/', '');
-        const msg = `Navigating to ${pageName}.`;
-        setLastCommandMsg(`🧭 ${msg}`);
-        if (!voiceMuted) speakSystemVoice(msg);
+        setLastCommandMsg(`🧭 Navigating to ${pageName}.`);
         break;
       }
 
@@ -111,9 +92,7 @@ export default function VoiceAssistantHUD() {
             }),
           });
           if (res.ok) {
-            const msg = `Created new ${intent.taskType} quest: "${intent.title}".`;
-            setLastCommandMsg(`✨ ${msg}`);
-            if (!voiceMuted) speakSystemVoice(msg);
+            setLastCommandMsg(`✨ Created new ${intent.taskType} quest: "${intent.title}".`);
             router.refresh();
           }
         } catch (err) {
@@ -127,7 +106,6 @@ export default function VoiceAssistantHUD() {
         const data = await res.json();
         const msg = data.penalizedCount > 0 ? `Penalized ${data.penalizedCount} missed habits.` : 'All daily habits are up to date.';
         setLastCommandMsg(`⚡ Audit: ${msg}`);
-        if (!voiceMuted) speakSystemVoice(`Audit executed. ${msg}`);
         router.refresh();
         break;
       }
@@ -138,7 +116,7 @@ export default function VoiceAssistantHUD() {
         break;
       }
     }
-  }, [router, voiceMuted]);
+  }, [router]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -166,7 +144,9 @@ export default function VoiceAssistantHUD() {
     };
 
     rec.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        return; // Ignore normal silence & speech pause events
+      }
       if (event.error === 'not-allowed') {
         setLastCommandMsg('⚠️ Microphone permission denied.');
         isVoiceEnabledRef.current = false;
@@ -174,7 +154,6 @@ export default function VoiceAssistantHUD() {
       }
     };
 
-    // Keep voice recognition continuously active until manually turned off!
     rec.onend = () => {
       if (isVoiceEnabledRef.current) {
         setTimeout(() => {
@@ -192,7 +171,6 @@ export default function VoiceAssistantHUD() {
 
     recognitionRef.current = rec;
 
-    // Check if voice control was previously enabled by user
     const wasActive = localStorage.getItem('levelup_voice_active') === 'true';
     if (wasActive) {
       isVoiceEnabledRef.current = true;
@@ -221,7 +199,7 @@ export default function VoiceAssistantHUD() {
       setLastCommandMsg('🎤 Voice Control Disabled.');
       setTimeout(() => setLastCommandMsg(null), 3000);
     } else {
-      // Manually turning ON (Continuous)
+      // Manually turning ON
       isVoiceEnabledRef.current = true;
       localStorage.setItem('levelup_voice_active', 'true');
       try {
@@ -229,7 +207,6 @@ export default function VoiceAssistantHUD() {
         setIsListening(true);
         setTranscript('Listening continuously...');
         setLastCommandMsg(null);
-        if (!voiceMuted) speakSystemVoice('System voice active. Standing by.');
       } catch (err) {
         console.error('Error starting recognition:', err);
       }
@@ -240,7 +217,7 @@ export default function VoiceAssistantHUD() {
 
   return (
     <>
-      {/* Floating System Voice Button HUD (Available on all pages) */}
+      {/* Floating System Voice Button HUD */}
       <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
         {/* Transcript / Result Toast */}
         {(isListening || lastCommandMsg) && (
@@ -248,7 +225,7 @@ export default function VoiceAssistantHUD() {
             {isListening && (
               <div className="flex items-center gap-2 text-solo-cyan mb-1">
                 <span className="w-2 h-2 rounded-full bg-solo-cyan animate-ping" />
-                <span>SYSTEM VOICE: ALWAYS ACTIVE</span>
+                <span>SYSTEM VOICE: LISTENING...</span>
               </div>
             )}
             {transcript && <p className="text-text-primary italic">"{transcript}"</p>}
@@ -258,14 +235,6 @@ export default function VoiceAssistantHUD() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 bg-surface/90 backdrop-blur-md p-1.5 rounded-full border border-solo-blue/30 shadow-2xl">
-          <button
-            onClick={() => setVoiceMuted(!voiceMuted)}
-            className="p-2 rounded-full text-text-muted hover:text-text-primary transition-all"
-            title={voiceMuted ? 'Unmute System Audio Voice' : 'Mute System Audio Voice'}
-          >
-            {voiceMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-solo-cyan" />}
-          </button>
-
           <button
             onClick={() => setShowHelpModal(true)}
             className="p-2 rounded-full text-text-muted hover:text-text-primary transition-all"
@@ -309,7 +278,7 @@ export default function VoiceAssistantHUD() {
             <div className="space-y-3 font-rajdhani text-xs">
               <div className="p-3 bg-surface rounded-lg border border-surface-border">
                 <div className="font-bold text-solo-cyan text-sm uppercase mb-1">
-                  1. Complete / Mark Task Done (Any Page)
+                  1. Complete / Mark Task Done
                 </div>
                 <p className="text-text-muted">
                   Say: <strong className="text-text-primary">"Complete [task name]"</strong> or{' '}

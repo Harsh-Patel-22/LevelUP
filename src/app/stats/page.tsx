@@ -43,6 +43,11 @@ export default function StatsPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [daysFilter, setDaysFilter] = useState<number>(30);
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     async function loadStats() {
@@ -58,7 +63,7 @@ export default function StatsPage() {
         const streakData = await streakRes.json();
         const historyData = await historyRes.json();
 
-        setTotalXP(xpData.totalXP || 0);
+        setTotalXP(Number(xpData.totalXP || 0));
         if (xpData.rank) setRankInfo(xpData.rank);
         setCategories(xpData.categories || []);
         setStreaks(streakData.streaks || []);
@@ -113,49 +118,56 @@ export default function StatsPage() {
               </p>
             ) : (
               <div className="space-y-5">
-                {categories.map((cat) => (
-                  <div key={cat.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{cat.icon}</span>
-                        <span className="font-orbitron font-bold text-sm text-text-primary">
-                          {cat.name}
-                        </span>
-                        <span
-                          className="px-2 py-0.5 rounded text-xs font-orbitron font-extrabold"
+                {categories.map((cat) => {
+                  const catXP = Math.max(0, Number(cat.total_xp || 0));
+                  const curLevelXP = Math.max(0, Number(cat.currentLevelXP || 0));
+                  const nextLevelXP = Math.max(1, Number(cat.xpForNextLevel || 1));
+                  const progPercent = Math.min(100, Math.max(0, Number(cat.progressPercent || 0)));
+
+                  return (
+                    <div key={cat.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{cat.icon || '⚡'}</span>
+                          <span className="font-orbitron font-bold text-sm text-text-primary">
+                            {cat.name}
+                          </span>
+                          <span
+                            className="px-2 py-0.5 rounded text-xs font-orbitron font-extrabold"
+                            style={{
+                              backgroundColor: `${cat.color || '#4f8ef7'}20`,
+                              color: cat.color || '#4f8ef7',
+                              border: `1px solid ${cat.color || '#4f8ef7'}40`,
+                            }}
+                          >
+                            LV. {cat.level || 0}
+                          </span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="font-orbitron font-bold text-xs text-solo-cyan">
+                            {catXP.toLocaleString()} XP
+                          </span>
+                          <span className="text-[11px] font-rajdhani text-text-muted ml-2">
+                            ({curLevelXP} / {nextLevelXP} to next)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="w-full bg-surface h-3 rounded-full overflow-hidden p-0.5 border border-surface-border">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
                           style={{
-                            backgroundColor: `${cat.color}20`,
-                            color: cat.color,
-                            border: `1px solid ${cat.color}40`,
+                            width: `${progPercent}%`,
+                            backgroundColor: cat.color || '#4f8ef7',
+                            boxShadow: `0 0 10px ${cat.color || '#4f8ef7'}80`,
                           }}
-                        >
-                          LV. {cat.level}
-                        </span>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="font-orbitron font-bold text-xs text-solo-cyan">
-                          {cat.total_xp.toLocaleString()} XP
-                        </span>
-                        <span className="text-[11px] font-rajdhani text-text-muted ml-2">
-                          ({cat.currentLevelXP} / {cat.xpForNextLevel} to next)
-                        </span>
+                        />
                       </div>
                     </div>
-
-                    {/* Progress Bar */}
-                    <div className="w-full bg-surface h-3 rounded-full overflow-hidden p-0.5 border border-surface-border">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width: `${cat.progressPercent}%`,
-                          backgroundColor: cat.color,
-                          boxShadow: `0 0 10px ${cat.color}80`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -188,7 +200,7 @@ export default function StatsPage() {
               </div>
             </div>
 
-            {loading ? (
+            {loading || !isMounted ? (
               <div className="h-64 bg-surface-border/30 rounded-xl animate-pulse" />
             ) : (
               <div className="h-64 w-full pt-4">
@@ -262,7 +274,7 @@ export default function StatsPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-1 text-[11px] font-rajdhani font-bold text-text-muted">
-                        <span>{s.category_icon}</span>
+                        <span>{s.category_icon || '⚡'}</span>
                         <span>{s.category_name}</span>
                       </div>
                       <div className="font-semibold text-sm text-text-primary truncate">

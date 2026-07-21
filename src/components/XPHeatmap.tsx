@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getFormattedDate } from '@/lib/xp';
 
 interface HeatmapDay {
@@ -16,11 +16,24 @@ interface XPHeatmapProps {
 
 export default function XPHeatmap({ historyLogs = [] }: XPHeatmapProps) {
   const [hoveredDay, setHoveredDay] = useState<HeatmapDay | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="system-panel rounded-xl p-5 border-solo-blue/30 h-44 animate-pulse" />
+    );
+  }
 
   // Map input history array into a fast lookup map
   const xpMap = new Map<string, number>();
   historyLogs.forEach((item) => {
-    xpMap.set(item.date, item.xp);
+    if (item && item.date) {
+      xpMap.set(item.date, Number(item.xp || 0));
+    }
   });
 
   // Generate 365 days leading up to today
@@ -28,7 +41,7 @@ export default function XPHeatmap({ historyLogs = [] }: XPHeatmapProps) {
   const totalDays = 365;
   const daysList: HeatmapDay[] = [];
 
-  // Start from (today - 364 days) aligned to Sunday/Monday
+  // Start from (today - 364 days)
   const startDate = new Date(today);
   startDate.setDate(startDate.getDate() - (totalDays - 1));
 
