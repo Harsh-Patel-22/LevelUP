@@ -2,13 +2,66 @@ import { createClient } from '@libsql/client';
 import fs from 'fs';
 import path from 'path';
 
-const url = process.env.TURSO_DATABASE_URL || 'file:sqllocal.db';
+let rawUrl = process.env.TURSO_DATABASE_URL || 'file:sqllocal.db';
 const authToken = process.env.TURSO_AUTH_TOKEN || undefined;
 
+// Normalize https:// to libsql:// to prevent @libsql/client from using buggy HttpClient migrations interceptor
+if (rawUrl.startsWith('https://')) {
+  rawUrl = rawUrl.replace('https://', 'libsql://');
+}
+
 const db = createClient({
-  url,
+  url: rawUrl,
   authToken,
 });
+
+async function executeStatement(sqlStr: string, argsArray: any[] = []) {
+  // If remote Turso Cloud via HTTP/HTTPS, send raw pipeline request to bypass @libsql/client migration job check
+  if (rawUrl.startsWith('libsql://') || rawUrl.startsWith('https://')) {
+    const httpUrl = rawUrl.replace('libsql://', 'https://').replace('http://', 'https://');
+    const endpoint = `${httpUrl}/v2/pipeline`;
+
+    const formattedArgs = argsArray.map((val) => {
+      if (typeof val === 'number') return { type: 'integer', value: String(val) };
+      return { type: 'text', value: String(val) };
+    });
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authToken || ''}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            type: 'execute',
+            stmt: {
+              sql: sqlStr,
+              args: formattedArgs,
+            },
+          },
+          { type: 'close' },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Turso SQL Pipeline error (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json();
+    const resultReq = data.results?.[0]?.response?.result;
+    return {
+      rows: resultReq?.rows || [],
+      rowsAffected: resultReq?.affected_row_count || 0,
+    };
+  } else {
+    // Local SQLite file
+    return db.execute({ sql: sqlStr, args: argsArray });
+  }
+}
 
 async function main() {
   console.log('🔄 Running database migration...');
@@ -23,14 +76,14 @@ async function main() {
     .filter((s) => s.length > 0);
 
   for (const statement of statements) {
-    await db.execute(statement);
+    await executeStatement(statement);
   }
 
   console.log('✅ Database schema created/verified.');
 
   // Seed default categories if empty
-  const existingCategories = await db.execute('SELECT COUNT(*) as count FROM categories');
-  const count = Number(existingCategories.rows[0].count);
+  const existingCategories = await executeStatement('SELECT COUNT(*) as count FROM categories');
+  const count = Number(existingCategories.rows[0]?.count || 0);
 
   if (count === 0) {
     console.log('🌱 Seeding default categories...');
@@ -43,17 +96,18 @@ async function main() {
     ];
 
     for (const cat of seedCategories) {
-      await db.execute({
-        sql: 'INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)',
-        args: [cat.name, cat.icon, cat.color],
-      });
+      await executeStatement('INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)', [
+        cat.name,
+        cat.icon,
+        cat.color,
+      ]);
     }
     console.log('✅ Seeded default categories.');
   }
 
   // Seed active Boss Raid if empty
-  const existingBoss = await db.execute('SELECT COUNT(*) as count FROM boss_raids');
-  const bossCount = Number(existingBoss.rows[0].count);
+  const existingBoss = await executeStatement('SELECT COUNT(*) as count FROM boss_raids');
+  const bossCount = Number(existingBoss.rows[0]?.count || 0);
 
   if (bossCount === 0) {
     console.log('👹 Seeding default Weekly Boss Raid...');
@@ -64,12 +118,9 @@ async function main() {
     const todayStr = today.toISOString().split('T')[0];
     const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
-    await db.execute({
-      sql: `
-        INSERT INTO boss_raids (name, title, avatar, current_hp, max_hp, reward_xp, start_date, end_date, is_defeated)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-      `,
-      args: [
+    await executeStatement(
+      `INSERT INTO boss_raids (name, title, avatar, current_hp, max_hp, reward_xp, start_date, end_date, is_defeated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      [
         'Blood-Red Commander Igris',
         'S-Rank Dungeon Boss',
         '⚔️',
@@ -78,8 +129,8 @@ async function main() {
         1000,
         todayStr,
         nextWeekStr,
-      ],
-    });
+      ]
+    );
     console.log('✅ Seeded Boss Raid: Igris the Red-Blood Knight.');
   }
 
