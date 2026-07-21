@@ -47,8 +47,13 @@ export async function GET() {
       rank: rankInfo,
       categories: categoriesWithLevels,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching XP stats:', error);
-    return NextResponse.json({ error: 'Failed to fetch XP stats' }, { status: 500 });
+    return NextResponse.json({
+      totalXP: 0,
+      rank: getOverallRank(0),
+      categories: [],
+      error: error?.message || String(error),
+    });
   }
 }

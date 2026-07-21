@@ -5,6 +5,13 @@ import { db } from '@/lib/db';
 
 export async function GET() {
   try {
+    if (!process.env.TURSO_DATABASE_URL && process.env.VERCEL) {
+      return NextResponse.json({
+        categories: [],
+        error: 'TURSO_DATABASE_URL environment variable is missing on Vercel. Please add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Vercel Project Settings.',
+      });
+    }
+
     const result = await db.execute(`
       SELECT c.*, 
         COALESCE((SELECT SUM(delta) FROM xp_log WHERE category_id = c.id), 0) as total_xp,
@@ -16,7 +23,10 @@ export async function GET() {
     return NextResponse.json({ categories: result.rows });
   } catch (error: any) {
     console.error('Error fetching categories:', error);
-    return NextResponse.json({ error: error?.message || String(error) }, { status: 500 });
+    return NextResponse.json({
+      categories: [],
+      error: error?.message || String(error),
+    });
   }
 }
 
@@ -45,9 +55,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ category: newCategory.rows[0] }, { status: 201 });
   } catch (error: any) {
     console.error('Error creating category:', error);
-    if (error.message && error.message.includes('UNIQUE constraint failed')) {
-      return NextResponse.json({ error: 'Category name already exists' }, { status: 409 });
-    }
-    return NextResponse.json({ error: 'Failed to create category' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || String(error) }, { status: 400 });
   }
 }

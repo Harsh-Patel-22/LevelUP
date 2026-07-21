@@ -26,9 +26,9 @@ export async function GET(req: NextRequest) {
 
     const result = await db.execute(sql);
     return NextResponse.json({ tasks: result.rows });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching tasks:', error);
-    return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
+    return NextResponse.json({ tasks: [], error: error?.message || String(error) });
   }
 }
 
