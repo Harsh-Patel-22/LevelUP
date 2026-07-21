@@ -1,16 +1,16 @@
 'use client';
 
 import { RankInfo } from '@/lib/xp';
-import { Shield, Zap, Flame, Award, ChevronRight } from 'lucide-react';
+import { Award, Flame, Zap } from 'lucide-react';
 
 interface PlayerCardProps {
-  rank: RankInfo;
-  totalXP: number;
+  rank?: RankInfo;
+  totalXP?: number;
   activeStreaksCount?: number;
   loading?: boolean;
 }
 
-export default function PlayerCard({ rank, totalXP, activeStreaksCount = 0, loading }: PlayerCardProps) {
+export default function PlayerCard({ rank, totalXP = 0, activeStreaksCount = 0, loading }: PlayerCardProps) {
   if (loading) {
     return (
       <div className="system-panel rounded-xl p-6 animate-pulse flex items-center justify-between">
@@ -20,11 +20,21 @@ export default function PlayerCard({ rank, totalXP, activeStreaksCount = 0, load
     );
   }
 
+  const safeRank = rank || {
+    rank: 'E',
+    title: 'E-Rank Awakened (The Weakest)',
+    minXP: 0,
+    nextRankMinXP: 1000,
+    color: '#94a3b8',
+  };
+
+  const safeXP = Math.max(0, Number(totalXP || 0));
+
   // Calculate percentage to next rank
   let nextRankProgress = 100;
-  if (rank.nextRankMinXP !== null) {
-    const xpInRankRange = totalXP - rank.minXP;
-    const rankRangeTotal = rank.nextRankMinXP - rank.minXP;
+  if (safeRank.nextRankMinXP !== null && safeRank.nextRankMinXP > safeRank.minXP) {
+    const xpInRankRange = safeXP - safeRank.minXP;
+    const rankRangeTotal = safeRank.nextRankMinXP - safeRank.minXP;
     nextRankProgress = Math.min(100, Math.max(0, (xpInRankRange / rankRangeTotal) * 100));
   }
 
@@ -38,9 +48,9 @@ export default function PlayerCard({ rank, totalXP, activeStreaksCount = 0, load
         {/* Left: Rank Badge & Title */}
         <div className="flex items-center gap-4 sm:gap-5">
           <div
-            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex items-center justify-center font-orbitron font-black text-2xl sm:text-3xl shrink-0 rank-badge-${rank.rank}`}
+            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex items-center justify-center font-orbitron font-black text-2xl sm:text-3xl shrink-0 rank-badge-${safeRank.rank}`}
           >
-            {rank.rank}
+            {safeRank.rank}
           </div>
 
           <div>
@@ -55,13 +65,13 @@ export default function PlayerCard({ rank, totalXP, activeStreaksCount = 0, load
             </div>
 
             <h2 className="font-orbitron font-extrabold text-xl sm:text-2xl text-text-primary mt-1">
-              {rank.title}
+              {safeRank.title}
             </h2>
 
             <div className="flex items-center gap-4 mt-2 text-xs font-rajdhani font-semibold text-text-muted">
               <span className="flex items-center gap-1.5 text-solo-gold">
                 <Award className="w-4 h-4" />
-                Rank Tier: <strong className="text-text-primary">{rank.rank}-Rank</strong>
+                Rank Tier: <strong className="text-text-primary">{safeRank.rank}-Rank</strong>
               </span>
               <span className="flex items-center gap-1.5 text-solo-cyan">
                 <Flame className="w-4 h-4" />
@@ -79,7 +89,7 @@ export default function PlayerCard({ rank, totalXP, activeStreaksCount = 0, load
               Total System XP
             </span>
             <span className="font-orbitron text-solo-cyan text-base font-bold">
-              {totalXP.toLocaleString()} <span className="text-xs font-normal text-text-muted">XP</span>
+              {safeXP.toLocaleString()} <span className="text-xs font-normal text-text-muted">XP</span>
             </span>
           </div>
 
@@ -92,10 +102,10 @@ export default function PlayerCard({ rank, totalXP, activeStreaksCount = 0, load
           </div>
 
           <div className="flex justify-between items-center text-[11px] font-rajdhani font-semibold text-text-muted mt-1.5">
-            <span>Current: {totalXP.toLocaleString()} XP</span>
+            <span>Current: {safeXP.toLocaleString()} XP</span>
             <span>
-              {rank.nextRankMinXP !== null ? (
-                <>Next Rank: {rank.nextRankMinXP.toLocaleString()} XP</>
+              {safeRank.nextRankMinXP !== null ? (
+                <>Next Rank: {safeRank.nextRankMinXP.toLocaleString()} XP</>
               ) : (
                 'MAX RANK REACHED'
               )}

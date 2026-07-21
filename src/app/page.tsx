@@ -90,6 +90,17 @@ export default function DashboardPage() {
       const data = await res.json();
 
       if (res.ok) {
+        const earned = Number(data.xpEarned || 0);
+
+        // Optimistically update player XP and Rank instantly!
+        if (earned > 0) {
+          setPlayerXP((prevXP) => {
+            const nextXP = prevXP + earned;
+            setPlayerRank(getOverallRank(nextXP));
+            return nextXP;
+          });
+        }
+
         // Trigger Boss Raid damage
         if (data.xpEarned) {
           setLastDamageDealt(data.xpEarned);

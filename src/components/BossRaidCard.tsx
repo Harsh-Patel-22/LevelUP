@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Skull, Swords, Trophy, Zap, ShieldAlert } from 'lucide-react';
+import { Skull } from 'lucide-react';
 import { playBossDamageSFX } from '@/lib/sound';
 
 export interface BossData {
@@ -30,9 +30,14 @@ export default function BossRaidCard({ lastDamageDealt }: BossRaidCardProps) {
     try {
       const res = await fetch('/api/boss');
       const data = await res.json();
-      setBoss(data.boss || null);
+      if (data && data.boss) {
+        setBoss(data.boss);
+      } else {
+        setBoss(null);
+      }
     } catch (err) {
       console.error('Failed to fetch boss raid:', err);
+      setBoss(null);
     } finally {
       setLoading(false);
     }
@@ -56,10 +61,14 @@ export default function BossRaidCard({ lastDamageDealt }: BossRaidCardProps) {
     return <div className="system-panel rounded-xl p-5 h-32 animate-pulse" />;
   }
 
-  if (!boss) return null;
+  if (!boss || typeof boss.current_hp !== 'number' || typeof boss.max_hp !== 'number') {
+    return null;
+  }
 
-  const hpPercent = Math.min(100, Math.max(0, (boss.current_hp / boss.max_hp) * 100));
-  const isDefeated = boss.is_defeated === 1 || boss.current_hp === 0;
+  const curHP = Math.max(0, Number(boss.current_hp || 0));
+  const maxHP = Math.max(1, Number(boss.max_hp || 1));
+  const hpPercent = Math.min(100, Math.max(0, (curHP / maxHP) * 100));
+  const isDefeated = boss.is_defeated === 1 || curHP === 0;
 
   return (
     <div
@@ -92,7 +101,7 @@ export default function BossRaidCard({ lastDamageDealt }: BossRaidCardProps) {
         </div>
 
         <span className="text-[11px] font-rajdhani text-text-muted font-bold">
-          Reward: <strong className="text-solo-gold font-orbitron">+{boss.reward_xp} XP</strong>
+          Reward: <strong className="text-solo-gold font-orbitron">+{boss.reward_xp || 0} XP</strong>
         </span>
       </div>
 
@@ -118,7 +127,7 @@ export default function BossRaidCard({ lastDamageDealt }: BossRaidCardProps) {
               <p className="font-rajdhani text-xs text-text-muted font-semibold">{boss.title}</p>
             </div>
             <span className="font-orbitron font-bold text-xs text-solo-danger">
-              {boss.current_hp.toLocaleString()} / {boss.max_hp.toLocaleString()} HP
+              {curHP.toLocaleString()} / {maxHP.toLocaleString()} HP
             </span>
           </div>
 
