@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { queryDb, safeSerialize, db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const result = await db.execute(`
+    const result = await queryDb(`
       SELECT * FROM boss_raids
       ORDER BY id DESC
       LIMIT 1
@@ -15,10 +15,10 @@ export async function GET() {
       return NextResponse.json({ boss: null });
     }
 
-    return NextResponse.json({ boss: result.rows[0] });
-  } catch (error) {
+    return NextResponse.json({ boss: safeSerialize(result.rows[0]) });
+  } catch (error: any) {
     console.error('Error fetching boss raid:', error);
-    return NextResponse.json({ error: 'Failed to fetch boss raid' }, { status: 500 });
+    return NextResponse.json({ boss: null, error: error?.message || String(error) });
   }
 }
 

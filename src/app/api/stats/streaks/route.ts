@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-import { db } from '@/lib/db';
+import { queryDb, safeSerialize } from '@/lib/db';
 
 export async function GET() {
   try {
-    const result = await db.execute(`
+    const result = await queryDb(`
       SELECT 
         s.task_id,
         t.title as task_title,
@@ -22,9 +22,9 @@ export async function GET() {
       ORDER BY s.current_streak DESC, s.longest_streak DESC
     `);
 
-    return NextResponse.json({ streaks: result.rows });
-  } catch (error) {
+    return NextResponse.json({ streaks: safeSerialize(result.rows) });
+  } catch (error: any) {
     console.error('Error fetching streaks:', error);
-    return NextResponse.json({ error: 'Failed to fetch streaks' }, { status: 500 });
+    return NextResponse.json({ streaks: [], error: error?.message || String(error) });
   }
 }

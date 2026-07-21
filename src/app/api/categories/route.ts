@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-import { db } from '@/lib/db';
+import { queryDb, safeSerialize, db } from '@/lib/db';
 
 export async function GET() {
   try {
@@ -12,7 +12,7 @@ export async function GET() {
       });
     }
 
-    const result = await db.execute(`
+    const result = await queryDb(`
       SELECT c.*, 
         COALESCE((SELECT SUM(delta) FROM xp_log WHERE category_id = c.id), 0) as total_xp,
         (SELECT COUNT(*) FROM tasks WHERE category_id = c.id AND is_active = 1) as active_tasks_count
@@ -20,7 +20,7 @@ export async function GET() {
       ORDER BY c.name ASC
     `);
 
-    return NextResponse.json({ categories: result.rows });
+    return NextResponse.json({ categories: safeSerialize(result.rows) });
   } catch (error: any) {
     console.error('Error fetching categories:', error);
     return NextResponse.json({

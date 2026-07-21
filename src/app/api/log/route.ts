@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({ logs: result.rows });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching XP log:', error);
-    return NextResponse.json({ error: 'Failed to fetch XP log' }, { status: 500 });
+    return NextResponse.json({ logs: [], error: error?.message || String(error) });
   }
 }

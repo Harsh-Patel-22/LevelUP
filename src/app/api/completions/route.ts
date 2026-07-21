@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-import { db } from '@/lib/db';
+import { queryDb, safeSerialize, db } from '@/lib/db';
 import {
   calculateTaskXP,
   calculateCategoryLevel,
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const dateParam = searchParams.get('date') || getFormattedDate();
 
-    const result = await db.execute({
+    const result = await queryDb({
       sql: `
         SELECT 
           c.*,
@@ -28,10 +28,10 @@ export async function GET(req: NextRequest) {
       args: [dateParam],
     });
 
-    return NextResponse.json({ completions: result.rows });
-  } catch (error) {
+    return NextResponse.json({ completions: safeSerialize(result.rows) });
+  } catch (error: any) {
     console.error('Error fetching completions:', error);
-    return NextResponse.json({ error: 'Failed to fetch completions' }, { status: 500 });
+    return NextResponse.json({ completions: [], error: error?.message || String(error) });
   }
 }
 

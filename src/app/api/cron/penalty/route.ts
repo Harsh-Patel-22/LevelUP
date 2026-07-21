@@ -101,8 +101,13 @@ async function handlePenaltyCheck() {
       penalizedCount: penalizedTasks.length,
       penalizedTasks,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error running penalty cron job:', error);
-    return NextResponse.json({ error: 'Failed to process penalty job' }, { status: 500 });
+    return NextResponse.json({
+      success: false,
+      penalizedCount: 0,
+      penalizedTasks: [],
+      error: error?.message || String(error),
+    });
   }
 }

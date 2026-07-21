@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-import { db } from '@/lib/db';
+import { queryDb, safeSerialize } from '@/lib/db';
 import { calculateCategoryLevel, getOverallRank } from '@/lib/xp';
 
 export async function GET() {
   try {
     // 1. Category Breakdown
-    const catResult = await db.execute(`
+    const catResult = await queryDb(`
       SELECT 
         c.id,
         c.name,
@@ -42,11 +42,13 @@ export async function GET() {
 
     const rankInfo = getOverallRank(totalPlayerXP);
 
-    return NextResponse.json({
-      totalXP: totalPlayerXP,
-      rank: rankInfo,
-      categories: categoriesWithLevels,
-    });
+    return NextResponse.json(
+      safeSerialize({
+        totalXP: totalPlayerXP,
+        rank: rankInfo,
+        categories: categoriesWithLevels,
+      })
+    );
   } catch (error: any) {
     console.error('Error fetching XP stats:', error);
     return NextResponse.json({

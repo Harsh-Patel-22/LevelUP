@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
-import { db } from '@/lib/db';
+import { queryDb, safeSerialize, db } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
       ORDER BY t.created_at DESC
     `;
 
-    const result = await db.execute(sql);
-    return NextResponse.json({ tasks: result.rows });
+    const result = await queryDb(sql);
+    return NextResponse.json({ tasks: safeSerialize(result.rows) });
   } catch (error: any) {
     console.error('Error fetching tasks:', error);
     return NextResponse.json({ tasks: [], error: error?.message || String(error) });

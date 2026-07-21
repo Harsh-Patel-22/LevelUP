@@ -46,8 +46,8 @@ export async function GET(req: NextRequest) {
     }));
 
     return NextResponse.json({ history: formattedHistory });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching history:', error);
-    return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 });
+    return NextResponse.json({ history: [], error: error?.message || String(error) });
   }
 }
