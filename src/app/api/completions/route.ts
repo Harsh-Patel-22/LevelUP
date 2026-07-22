@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
     }
 
     await db.execute({
-      sql: 'INSERT INTO xp_log (category_id, delta, reason, logged_at) VALUES (?, ?, ?, datetime("now"))',
+      sql: "INSERT INTO xp_log (category_id, delta, reason, logged_at) VALUES (?, ?, ?, datetime('now'))",
       args: [categoryId, xpEarned, 'task_complete'],
     });
 
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
 
       if (bossDefeatedNow) {
         await db.execute({
-          sql: 'INSERT INTO xp_log (category_id, delta, reason, logged_at) VALUES (?, ?, ?, datetime("now"))',
+          sql: "INSERT INTO xp_log (category_id, delta, reason, logged_at) VALUES (?, ?, ?, datetime('now'))",
           args: [categoryId, bossReward, `Boss Defeated Reward: ${activeBoss.name}`],
         });
       }
