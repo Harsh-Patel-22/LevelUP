@@ -20,11 +20,12 @@ export async function GET() {
       ORDER BY total_xp DESC
     `);
 
-    let totalPlayerXP = 0;
+    // Query total XP directly from xp_log table to prevent any join / mapping discrepancies
+    const totalXPRes = await queryDb("SELECT COALESCE(SUM(delta), 0) as total FROM xp_log");
+    const totalPlayerXP = Number(totalXPRes.rows[0]?.total || 0);
 
     const categoriesWithLevels = catResult.rows.map((row) => {
       const categoryXP = Number(row.total_xp);
-      totalPlayerXP += categoryXP;
       const levelProgress = calculateCategoryLevel(categoryXP);
 
       return {
