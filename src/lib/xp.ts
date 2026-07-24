@@ -56,12 +56,12 @@ export function calculateTaskXP(weight: number, type: 'habit' | 'priority', stre
 
 /**
  * Calculate streak failure penalty
- * Penalty is -50% of task's base XP, capped at max -100 XP per miss
+ * Penalty is relaxed to -20% of task's base XP to maintain high player motivation
  */
 export function calculatePenaltyXP(weight: number): number {
   const baseXP = getBaseXP(weight);
-  const penalty = Math.round(baseXP * 0.5);
-  return -Math.min(penalty, 100);
+  const penalty = Math.round(baseXP * 0.2);
+  return -Math.max(1, penalty); // Minimum -1 XP deduction
 }
 
 /**
