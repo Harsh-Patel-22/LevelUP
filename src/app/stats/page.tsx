@@ -47,10 +47,42 @@ export default function StatsPage() {
 
   useEffect(() => {
     setIsMounted(true);
+
+    // Load cached stats immediately to render instantly!
+    const cachedStatsStr = typeof window !== 'undefined' ? localStorage.getItem('levelup_stats_cache') : null;
+    if (cachedStatsStr) {
+      try {
+        const cached = JSON.parse(cachedStatsStr);
+        setTotalXP(cached.totalXP || 0);
+        setRankInfo(cached.rankInfo || getOverallRank(0));
+        setCategories(cached.categories || []);
+        setStreaks(cached.streaks || []);
+        setHistory(cached.history || []);
+        setLoading(false);
+      } catch (e) {}
+    }
   }, []);
 
   useEffect(() => {
     async function loadStats() {
+      // Check if we have a fresh cache (under 30 seconds old)
+      const cachedStatsStr = typeof window !== 'undefined' ? localStorage.getItem('levelup_stats_cache') : null;
+      if (cachedStatsStr) {
+        try {
+          const cached = JSON.parse(cachedStatsStr);
+          const ageMs = Date.now() - (cached.timestamp || 0);
+          if (ageMs < 30000) {
+            setTotalXP(cached.totalXP || 0);
+            setRankInfo(cached.rankInfo || getOverallRank(0));
+            setCategories(cached.categories || []);
+            setStreaks(cached.streaks || []);
+            setHistory(cached.history || []);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {}
+      }
+
       setLoading(true);
       try {
         const [xpRes, streakRes, historyRes] = await Promise.all([
@@ -63,11 +95,32 @@ export default function StatsPage() {
         const streakData = await streakRes.json();
         const historyData = await historyRes.json();
 
-        setTotalXP(Number(xpData.totalXP || 0));
-        if (xpData.rank) setRankInfo(xpData.rank);
-        setCategories(xpData.categories || []);
-        setStreaks(streakData.streaks || []);
-        setHistory(historyData.history || []);
+        const cleanXP = Number(xpData.totalXP || 0);
+        const cleanRank = xpData.rank || getOverallRank(0);
+        const cleanCats = xpData.categories || [];
+        const cleanStreaks = streakData.streaks || [];
+        const cleanHistory = historyData.history || [];
+
+        setTotalXP(cleanXP);
+        setRankInfo(cleanRank);
+        setCategories(cleanCats);
+        setStreaks(cleanStreaks);
+        setHistory(cleanHistory);
+
+        // Save fresh stats to cache
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(
+            'levelup_stats_cache',
+            JSON.stringify({
+              totalXP: cleanXP,
+              rankInfo: cleanRank,
+              categories: cleanCats,
+              streaks: cleanStreaks,
+              history: cleanHistory,
+              timestamp: Date.now(),
+            })
+          );
+        }
       } catch (err) {
         console.error('Failed to load stats:', err);
       } finally {

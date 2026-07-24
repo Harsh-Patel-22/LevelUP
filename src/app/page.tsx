@@ -29,7 +29,26 @@ export default function DashboardPage() {
 
   const todayStr = getFormattedDate();
 
-  const fetchData = useCallback(async (isInitial = false) => {
+  const fetchData = useCallback(async (isInitial = false, forceFetch = false) => {
+    // 1. Try loading cached dashboard data if not forcing fetch
+    const cachedDataStr = typeof window !== 'undefined' ? localStorage.getItem('levelup_dashboard_cache') : null;
+    if (cachedDataStr && !forceFetch) {
+      try {
+        const cached = JSON.parse(cachedDataStr);
+        const ageMs = Date.now() - (cached.timestamp || 0);
+        if (cached.date === todayStr && ageMs < 30000) {
+          // Cache is fresh (under 30s) and same day: use it immediately and skip fetch!
+          setTasks(cached.tasks || []);
+          setCompletions(cached.completions || {});
+          setPlayerXP(cached.playerXP || 0);
+          setPlayerRank(cached.playerRank || getOverallRank(0));
+          setActiveStreaks(cached.activeStreaks || 0);
+          setLoading(false);
+          return;
+        }
+      } catch (e) {}
+    }
+
     if (isInitial) setLoading(true);
     try {
       // 1. Fetch active tasks
@@ -50,10 +69,10 @@ export default function DashboardPage() {
       // 3. Fetch XP stats
       const xpRes = await fetch('/api/stats/xp');
       const xpData = await xpRes.json();
-      setPlayerXP(xpData.totalXP || 0);
-      if (xpData.rank) {
-        setPlayerRank(xpData.rank);
-      }
+      const nextXP = xpData.totalXP || 0;
+      const nextRank = xpData.rank || getOverallRank(0);
+      setPlayerXP(nextXP);
+      setPlayerRank(nextRank);
 
       // 4. Fetch streaks stats
       const streakRes = await fetch('/api/stats/streaks');
@@ -63,6 +82,22 @@ export default function DashboardPage() {
 
       setTasks(loadedTasks);
       setCompletions(compMap);
+
+      // Update localStorage cache
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(
+          'levelup_dashboard_cache',
+          JSON.stringify({
+            date: todayStr,
+            tasks: loadedTasks,
+            completions: compMap,
+            playerXP: nextXP,
+            playerRank: nextRank,
+            activeStreaks: activeCount,
+            timestamp: Date.now(),
+          })
+        );
+      }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
@@ -71,8 +106,23 @@ export default function DashboardPage() {
   }, [todayStr]);
 
   useEffect(() => {
+    // Instant initial mount cache loading
+    const cachedDataStr = typeof window !== 'undefined' ? localStorage.getItem('levelup_dashboard_cache') : null;
+    if (cachedDataStr) {
+      try {
+        const cached = JSON.parse(cachedDataStr);
+        if (cached.date === todayStr) {
+          setTasks(cached.tasks || []);
+          setCompletions(cached.completions || {});
+          setPlayerXP(cached.playerXP || 0);
+          setPlayerRank(cached.playerRank || getOverallRank(0));
+          setActiveStreaks(cached.activeStreaks || 0);
+          setLoading(false);
+        }
+      } catch (e) {}
+    }
     fetchData(true);
-  }, [fetchData]);
+  }, [fetchData, todayStr]);
 
   const handleToggleTask = async (task: TaskItem, isCompleted: boolean) => {
     if (completions[task.id]) return; // Locked once completed
@@ -107,8 +157,8 @@ export default function DashboardPage() {
           setTimeout(() => setLastDamageDealt(null), 1500);
         }
 
-        // Silent background refetch of stats
-        fetchData(false);
+        // Silent background refetch of stats, forcing fresh database load
+        fetchData(false, true);
 
         if (data.leveledUp) {
           setLevelUpData({
